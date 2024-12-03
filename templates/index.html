@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Object Detection System</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style2.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Multi-Mode Object Detection System</h1>
+        
+        <!-- Mode Selection -->
+        <div class="detection-section">
+            <h2>Select Detection Mode</h2>
+            <select id="detection-mode" onchange="switchMode()">
+                <option value="image">Image Detection</option>
+                <option value="video">Video File Detection</option>
+                <option value="webcam">Webcam Detection</option>
+            </select>
+        </div>
+
+        <!-- Image Detection Section -->
+        <div id="image-section" class="detection-section">
+            <h2>Upload an Image</h2>
+            <form id="image-upload-form" action="/object-detection/" method="post" enctype="multipart/form-data">
+                <label for="image">Select Image:</label>
+                <input type="file" id="image" name="image" accept="image/*" required><br><br>
+                <input type="submit" value="Upload and Apply Detection">
+            </form>
+            <div class="output-container">
+                <h3>Output Image:</h3>
+                <img id="output-image" src="" alt="Processed Image">
+                <br>
+                <a id="download-image-link" href="" download="output.png" class="hidden">Download Processed Image</a>
+            </div>
+        </div>
+
+        <!-- Video File Detection Section -->
+        <div id="video-section" class="detection-section hidden">
+            <h2>Upload a Video</h2>
+            <form id="video-upload-form" action="/video-detection/" method="post" enctype="multipart/form-data">
+                <label for="video">Select Video:</label>
+                <input type="file" id="video" name="video" accept="video/*" required><br><br>
+                <input type="submit" value="Upload and Process Video">
+            </form>
+            <div id="video-progress" class="hidden">
+                <p>Processing video... Please wait.</p>
+            </div>
+            <div class="output-container">
+                <h3>Output Video:<h3>
+                <video id="output-video" controls class="hidden" width="640"></video>
+                <br>
+                <a id="download-video-link" class="hidden">Download Processed Video</a>
+            </div>
+        </div>
+
+        <!-- Webcam Detection Section -->
+        <div id="webcam-section" class="detection-section hidden">
+            <h2>Webcam Detection</h2>
+            <div id="video-container">
+                <img id="webcam-feed" src="" alt="Webcam feed">
+            </div>
+            <div class="button-container">
+                <button id="start-webcam" onclick="startWebcam()">Start Webcam</button>
+                <button id="stop-webcam" onclick="stopWebcam()" class="hidden">Stop Webcam</button>
+            </div>
+        </div>
+        <script src="{{ url_for('static', filename='js/webcam.js') }}"></script>
+    </div>
+
+    <script>
+        // Image detection handling
+        document.getElementById('image-upload-form').onsubmit = async function(event) {
+            event.preventDefault();
+            
+            const formData = new FormData(event.target);
+            const submitButton = event.target.querySelector('input[type="submit"]');
+            submitButton.disabled = true;
+            submitButton.value = 'Processing...';
+            
+            try {
+                const response = await fetch('/object-detection/', {
+                    method: 'POST',
+                    body: formData
+                });
+        
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = URL.createObjectURL(blob);
+        
+                    const outputImage = document.getElementById('output-image');
+                    outputImage.src = url;
+        
+                    const downloadLink = document.getElementById('download-image-link');
+                    downloadLink.href = url;
+                    downloadLink.classList.remove('hidden');
+                } else {
+                    const errorData = await response.json();
+                    alert(`Failed to process image: ${errorData.error}`);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error processing image: ' + error.message);
+            } finally {
+                submitButton.disabled = false;
+                submitButton.value = 'Upload and Apply Detection';
+            }
+        };
+        
+        // Video file handling
+        document.getElementById('video-upload-form').onsubmit = async function(event) {
+            event.preventDefault();
+            
+            const formData = new FormData(event.target);
+            const progress = document.getElementById('video-progress');
+            const submitButton = event.target.querySelector('input[type="submit"]');
+            const outputVideo = document.getElementById('output-video');
+            const downloadLink = document.getElementById('download-video-link');
+            
+            try {
+                progress.classList.remove('hidden');
+                submitButton.disabled = true;
+                submitButton.value = 'Processing...';
+                
+                const response = await fetch('/video-detection/', {
+                    method: 'POST',
+                    body: formData
+                });
+        
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = URL.createObjectURL(blob);
+                    
+                    // Log the URL for debugging
+                    console.log('Video URL:', url);
+
+                    // Menampilkan video yang diproses di halaman
+                    outputVideo.src = url;
+                    outputVideo.classList.remove('hidden');
+                    outputVideo.load();
+
+                    // Menambahkan URL ke tombol download
+                    downloadLink.href = url;
+                    downloadLink.download = 'processed_video.mp4'; // Nama file yang akan didownload
+                    downloadLink.classList.remove('hidden');
+
+                    // Tambahkan pengecekan apakah video siap diputar
+                    outputVideo.oncanplay = function() {
+                        outputVideo.play();
+                    };
+
+                    outputVideo.onerror = function() {
+                        console.error("Error loading the video.");
+                        alert("There was an error loading the video.");
+                    };
+                } else {
+                    const errorData = await response.json();
+                    alert(`Failed to process video: ${errorData.error}`);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error processing video: ' + error.message);
+            } finally {
+                progress.classList.add('hidden');
+                submitButton.disabled = false;
+                submitButton.value = 'Upload and Process Video';
+            }
+        };
+
+        function switchMode() {
+        const mode = document.getElementById('detection-mode').value;
+
+        // Mendapatkan semua section
+        const imageSection = document.getElementById('image-section');
+        const videoSection = document.getElementById('video-section');
+        const webcamSection = document.getElementById('webcam-section');
+
+        // Menyembunyikan semua section terlebih dahulu
+        imageSection.classList.add('hidden');
+        videoSection.classList.add('hidden');
+        webcamSection.classList.add('hidden');
+
+        // Menampilkan section sesuai mode yang dipilih
+        if (mode === 'image') {
+            imageSection.classList.remove('hidden');
+        } else if (mode === 'video') {
+            videoSection.classList.remove('hidden');
+        } else if (mode === 'webcam') {
+            webcamSection.classList.remove('hidden');
+        }
+    }
+
+        // Memanggil fungsi switchMode() ketika halaman pertama kali dimuat
+        document.addEventListener('DOMContentLoaded', switchMode);
+
+        </script>
+</body>
+</html>
